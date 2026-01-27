@@ -19,7 +19,7 @@ export const antd: ThemeConfig = {
     colorInfo: primaryColor,
     colorSuccess: primaryColor,
     colorWarning: primaryColor,
-    colorError: primaryColor,
+    colorError: 'red',
 
     // 📝 Tipografía
     fontFamily: 'system-ui, sans-serif',

@@ -6,7 +6,7 @@ const AppOutlet: React.FC = () => {
   //const isMobile = useResponsive('(max-width: 768px)')
   return (
     <Layout className="max-h-dvh! overflow-hidden!  text-[14px]">
-      <OutletContainer isMobile={false}>
+      <OutletContainer isMobile={true}>
         <Outlet />
       </OutletContainer>
     </Layout>

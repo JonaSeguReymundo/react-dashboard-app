@@ -1,4 +1,4 @@
-import { type RoleName } from "src/config/roles"
+import type { RoleName } from "@/enum/role"
 import type Permissions from "./Permissions"
 
 export default interface Role {

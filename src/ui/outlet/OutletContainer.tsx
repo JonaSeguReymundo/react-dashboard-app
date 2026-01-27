@@ -3,16 +3,17 @@ import { LoadingOutlined, SearchOutlined } from '@ant-design/icons'
 import { Avatar, Input, Spin } from 'antd'
 import { MenuSquare } from 'lucide-react'
 import type React from 'react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import OutletMenu from './OutletMenu'
 import { useSession } from '@/hooks/useSession'
-import { isAuthorized, menu, type Route } from '@/config/roles'
 import ForbiddenView from '@/views/ForbiddenView'
 import useRecoil from '@/hooks/useRecoil'
 import { searchRecoil } from '@/constants/recoil'
-
-
+import type { RoutesEnum } from '@/enum/routes..app'
+import { routesConfig } from '@/config/routes.app'
+import { isAuthorized } from '@/utils/permission.app'
+import NotFoundView from '@/views/NotFoundView'
 
 export default function OutletContainer({
   children,
@@ -28,30 +29,34 @@ export default function OutletContainer({
   const location = useLocation()
 
   const role = user?.role?.name
-  const pathname = location.pathname as Route
+  const pathname = location.pathname as RoutesEnum
+
+  const findRoute = routesConfig[pathname]
 
   const allowed = role && isAuthorized(role, pathname)
 
-  const menuItems = useMemo(
-    () => (role ? menu(role).filter((item) => item.view) : []),
-    [role],
-  )
-
   const pageInfo = useMemo(() => {
-    const current = menuItems.find((r) => r.key === pathname)
-    setSearch('')
-    return current
-      ? { name: current.name, key: current.label }
-      : { name: 'Dashboard' }
-  }, [menuItems, setSearch, pathname])
+    const routeData = routesConfig[pathname]
 
-  const showSearch = !pathname.startsWith('/audit')
+    if (routeData) {
+      const { auth, title, search } = routeData
+      return { title, auth, search }
+    }
+
+    return { title: 'Unknnown', search: false, auth: false }
+  }, [pathname])
+
+  useEffect(() => {
+    setSearch('')
+  }, [location.pathname, setSearch])
 
   const toggleMenu = useCallback(() => {
     setCollapsed((previous) => !previous)
   }, [])
 
-  if (pathname === '/login') return children
+  if (!findRoute) return <NotFoundView />
+
+  if (!findRoute.auth) return children
 
   if (!allowed) return <ForbiddenView />
 
@@ -67,10 +72,10 @@ export default function OutletContainer({
         {!isMobile && (
           <div className="flex shrink-0 items-center justify-between gap-4  px-9 py-4">
             <div className="flex flex-col text-primary">
-              <span className="text-3xl font-extrabold">{pageInfo.name}</span>
+              <span className="text-3xl font-extrabold">{pageInfo.title}</span>
             </div>
 
-            {showSearch && (
+            {pageInfo.search && (
               <Input
                 placeholder="Buscar"
                 prefix={<SearchOutlined className="text-blue-500" />}
@@ -89,9 +94,9 @@ export default function OutletContainer({
         </div>
 
         {isMobile && (
-          <div className="flex items-center justify-around gap-3 bg-gray-200 px-3">
+          <div className="flex items-center justify-around gap-3 bg-gray-200 p-3">
             <button
-              className="rounded-lg bg-primary p-1.5 text-white transition-all active:bg-blue-950"
+              className="rounded-lg bg-primary p-1.5 text-white! transition-all active:bg-blue-950"
               onClick={toggleMenu}>
               <MenuSquare />
             </button>

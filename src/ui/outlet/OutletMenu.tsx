@@ -1,7 +1,10 @@
-import { menu } from '@/config/roles'
+
+import { menu, selectItemMenu, selectSubItemMenu } from '@/config/menu'
 import { searchRecoil } from '@/constants/recoil'
+import type { RoleName } from '@/enum/role'
 import useRecoil from '@/hooks/useRecoil'
 import { useSession } from '@/hooks/useSession'
+import type { MenuItem, SubMenuItem } from '@/models/app/menu'
 import {
   CloseOutlined,
   LeftOutlined,
@@ -21,7 +24,8 @@ import {
   Tooltip,
   Typography,
 } from 'antd'
-import { useMemo } from 'react'
+import type { MenuProps } from 'antd/lib'
+import { useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 const { Sider } = Layout
@@ -40,11 +44,63 @@ export default function OutletMenu({
   const { user: profile, loadingSession, logout } = useSession()
   const navigate = useNavigate()
 
-  const role = profile?.role
+  const role = profile?.role?.name
 
-  const menuItems = useMemo(() => {
-    return menu(role?.name).filter((item) => item.view)
-  }, [role])
+  const buildMenuItemsForAntd = useCallback(
+    (menu: MenuItem[], role: RoleName, collapsed: boolean): MenuProps['items'] => {
+      return menu
+        .filter(
+          (item) =>
+            item.authorized.includes(role) ||
+            item.authorized.includes('*') ||
+            item.children.some((c) => c.authorized.includes(role) || c.authorized.includes('*') || c.view)
+        )
+        .map((item) => {
+          const children = item.children.filter((c) => c.authorized.includes(role) || c.authorized.includes('*') && c.view)
+            .map((c: SubMenuItem) => ({
+              key: c.key,
+              label: (
+                <Tooltip
+                  placement="bottomRight"
+                  title={collapsed ? undefined : c.label}
+                >
+                  <div className="flex items-center gap-2">
+                    {c.icon && <span>{c.icon}</span>}
+                    {c.label}
+                  </div>
+                </Tooltip>
+              ),
+              icon: undefined,
+            }))
+
+          return {
+            key: item.key,
+            label: item.label,
+            icon: item.icon,
+            children: children.length > 0 ? children : undefined,
+          }
+        })
+    },
+    []
+  )
+
+  const filteredMenuItems = useMemo(
+    () => buildMenuItemsForAntd(menu, role!, collapsed) ?? [],
+    [buildMenuItemsForAntd, role, collapsed]
+  )
+
+  const menuKey = useMemo(() => {
+    const item = selectItemMenu(location.pathname)
+    if (!item) return ''
+    return item.key
+  }, [])
+
+  const subMenuKey = useMemo(() => {
+    const item = selectSubItemMenu(location.pathname)
+    if (!item) return ''
+    return item.key
+  }, [])
+
 
   const handleLogout = () => {
     logout()
@@ -114,7 +170,7 @@ export default function OutletMenu({
                     <Tag
                       className="mt-1 w-fit text-xs"
                       color={role ? 'green' : 'red'}>
-                      {role?.name.toLocaleLowerCase() || 'unknown'}
+                      {role?.toLocaleLowerCase() || 'unknown'}
                     </Tag>
                   </div>
                 )}
@@ -124,12 +180,8 @@ export default function OutletMenu({
                 <Menu
                   mode="inline"
                   theme="light"
-                  selectedKeys={[location.pathname]}
-                  items={menuItems.map((route) => ({
-                    key: route.key,
-                    icon: route.icon,
-                    label: route.label,
-                  }))}
+                  selectedKeys={[menuKey, subMenuKey]}
+                  items={filteredMenuItems}
                   onClick={({ key }) => {
                     if (key === location.pathname) return
                     navigate(key, { replace: false })
@@ -154,51 +206,56 @@ export default function OutletMenu({
           </aside>
         </>
       )}
-
       {isMobile && (
         <div
           className={`fixed top-0 z-5000 h-dvh w-full overflow-y-auto bg-white shadow-md transition-all duration-300 ease-out ${collapsed ? '-translate-x-full' : 'translate-x-0'
-            }`}>
+            }`}
+        >
           <div className="flex w-full flex-col gap-4 p-4">
-            <div className="flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg border border-primary text-center transition-colors duration-150">
+            <div className="border-primary flex cursor-pointer items-center gap-3 overflow-hidden rounded-lg border text-center transition-colors duration-150">
               <Input
                 placeholder="Buscar"
-                prefix={<SearchOutlined className="text-blue-500 " />}
-                className="w-full! rounded-lg! border-none  font-bold text-blue-500! placeholder:text-blue-400"
+                prefix={<SearchOutlined className="text-blue-500" />}
+                className="w-full! rounded-lg! border-none font-bold text-blue-500! placeholder:text-blue-400"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 style={{ width: 200 }}
               />
             </div>
-            {menuItems
-              .filter((item) => item.view)
-              .map((item) => (
-                <div
-                  key={item.key}
-                  className="flex cursor-pointer items-center justify-center gap-3  border-b border-b-primary px-3 py-2 text-center transition-colors duration-150 hover:bg-gray-100"
-                  onClick={() => {
-                    navigate(item.key, { replace: false })
-                    openMenu()
-                  }}>
-                  <div className="text-primary">{item.icon}</div>
-                  <Text className="font-medium">{item.label}</Text>
-                </div>
-              ))}
 
-            <div className="flex cursor-pointer items-center justify-center gap-3  border-b border-b-primary px-3 py-2 text-center transition-colors duration-150 hover:bg-gray-100">
+            {/* Renderizado del menú filtrado con JSX para mobile */}
+            <Menu
+              mode="inline"
+              theme="light"
+              selectedKeys={[menuKey, subMenuKey]}
+              items={filteredMenuItems}
+              onClick={({ key }) => {
+                if (key === location.pathname) return
+                navigate(key, { replace: false })
+              }}
+              inlineCollapsed={collapsed}
+              style={{ border: 'none' }}
+            />
+
+            {/* Botón de cerrar sesión */}
+            <div className="border-b-primary flex cursor-pointer items-center justify-center gap-3 border-b px-3 py-2 text-center transition-colors duration-150 hover:bg-gray-100">
               <Button
                 type="text"
                 danger
                 icon={<LogoutOutlined />}
                 onClick={handleLogout}
                 block
-                className="flex items-center justify-center gap-2 text-sm font-medium text-red-600 transition-all hover:bg-red-50">
+                className="flex items-center justify-center gap-2 text-sm font-medium text-red-600 transition-all hover:bg-red-50"
+              >
                 {!collapsed && 'Cerrar sesión'}
               </Button>
             </div>
+
+            {/* Botón de cerrar menú */}
             <div
-              className="mx-auto flex size-12 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-md transition-all duration-200 ease-out hover:bg-blue-700 active:scale-95"
-              onClick={openMenu}>
+              className="bg-primary mx-auto flex size-12 cursor-pointer items-center justify-center rounded-full text-white shadow-md transition-all duration-200 ease-out hover:bg-blue-700 active:scale-95"
+              onClick={openMenu}
+            >
               <CloseOutlined className="text-white" size={200} />
             </div>
           </div>
