@@ -27,7 +27,6 @@
   },
   "dependencies": {
     "@ant-design/icons": "^6.1.0",
-    "@commitlint/config-conventional": "^20.4.0",
     "@generouted/react-router": "^1.20.0",
     "antd": "^6.0.1",
     "axios": "^1.13.2",
@@ -45,6 +44,8 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.4.0",
+    "@commitlint/config-conventional": "^20.4.0",
     "@eslint/js": "^9.39.1",
     "@tailwindcss/postcss": "^4.1.17",
     "@types/node": "^24.10.1",
