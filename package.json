@@ -18,10 +18,8 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --fix",
-      "eslint --cache --ext .ts,.tsx .",
-      "prettier --write",
-      "prettier --check"
+      "pnpm eslint:check",
+      "pnpm prettier:check"
     ]
   },
   "dependencies": {
