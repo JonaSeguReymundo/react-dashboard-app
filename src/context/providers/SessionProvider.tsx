@@ -23,7 +23,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
   const token = settings.token
 
   const { data: profile, isLoading: profileLoading } = useQuery<User>({
-    queryKey: [queryKeys.session],
+    queryKey: queryKeys.session,
     queryFn: () => service.profile(),
     enabled: !!token,
     retry: false,
@@ -41,7 +41,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
   const saveSession = useCallback(
     ({ token, data }: SessionResponse) => {
       settings.token = token
-      queryClient.setQueryData([queryKeys.session], data)
+      queryClient.setQueryData(queryKeys.session, data)
       navigate('/dashboard', { replace: true })
     },
     [navigate, queryClient]
@@ -49,7 +49,7 @@ export default function SessionProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     settings.removeToken()
-    queryClient.setQueryData([queryKeys.session], null)
+    queryClient.setQueryData(queryKeys.session, null)
 
     messageApi.info('Sesión cerrada correctamente.')
 

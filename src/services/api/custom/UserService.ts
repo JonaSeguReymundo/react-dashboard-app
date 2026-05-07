@@ -1,9 +1,9 @@
 import type User from '@/models/api/entities/User'
 import { appSettings } from '@/AppSettings'
 import SessionResponse from '@/models/api/SessionResponse'
-import Serivce from '@/services/core/Service'
+import Service from '@/services/core/Service'
 
-export default class UserService extends Serivce<User> {
+export default class UserService extends Service<User> {
   constructor() {
     super({
       origin: appSettings.apiService,

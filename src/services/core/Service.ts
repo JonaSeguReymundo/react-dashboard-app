@@ -14,7 +14,7 @@ import PaginationResponse from '@/models/api/core/PaginationResponse'
 import { BaseResponse } from '@/models/api/core/BaseResponse'
 import { appSettings } from '@/AppSettings'
 
-export default class Serivce<
+export default class Service<
   Entity extends BaseEntity,
 > implements AbstractService<Entity> {
   protected readonly axios: AxiosInstance
@@ -32,11 +32,9 @@ export default class Serivce<
 
   private getUrl(endpoint?: string, idOrPath?: string | number): string {
     const base = endpoint || this.endpoint
-    if (idOrPath === undefined || idOrPath === null) return base
+    if (idOrPath == null) return base
 
-    const path = String(idOrPath)
-    const normalized = path.startsWith('/') ? path.slice(1) : path
-
+    const normalized = String(idOrPath).replace(/^\/+/, '')
     return `${base}/${normalized}`
   }
 

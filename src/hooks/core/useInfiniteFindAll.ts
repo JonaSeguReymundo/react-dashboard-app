@@ -1,17 +1,17 @@
-import { queryClient } from '@/lib/queryClient'
 import BaseEntity from '@/models/api/core/_BaseEntity'
 import AbstractService from '@/models/api/core/AbstractService'
 import PaginationResponse from '@/models/api/core/PaginationResponse'
 import {
   useInfiniteQuery,
+  useQueryClient,
   InfiniteData,
   UseInfiniteQueryOptions,
 } from '@tanstack/react-query'
-
 import { useCallback, useMemo } from 'react'
 
-type QueryData<Entity extends BaseEntity> = PaginationResponse<Entity>
+// ─── Types ────────────────────────────────────────────────────────────────────
 
+type QueryData<Entity extends BaseEntity> = PaginationResponse<Entity>
 type QueryKey = readonly unknown[]
 
 type InfiniteOpts<
@@ -19,7 +19,7 @@ type InfiniteOpts<
   Selected = InfiniteData<QueryData<Entity>>,
 > = UseInfiniteQueryOptions<QueryData<Entity>, Error, Selected, QueryKey>
 
-interface UseInfiniteListOptions<
+export interface UseInfiniteListOptions<
   Entity extends BaseEntity,
   Selected = InfiniteData<QueryData<Entity>>,
 > extends Omit<
@@ -30,13 +30,20 @@ interface UseInfiniteListOptions<
   endpoint?: string
   queryKey: string | string[]
   queryParams?: Record<string, unknown>
-  getNextPageParam: InfiniteOpts<Entity, Selected>['getNextPageParam']
+  getNextPageParam: NonNullable<
+    InfiniteOpts<Entity, Selected>['getNextPageParam']
+  >
   initialPageParam?: InfiniteOpts<Entity, Selected>['initialPageParam']
 }
 
 export type InfiniteFindAllResult<Entity extends BaseEntity> = InfiniteData<
   QueryData<Entity>
 >
+
+const EMPTY_INFINITE_CACHE = {
+  pages: [],
+  pageParams: [],
+}
 
 const useInfiniteFindAll = <
   Entity extends BaseEntity,
@@ -47,9 +54,11 @@ const useInfiniteFindAll = <
   queryKey,
   queryParams = {},
   getNextPageParam,
-  initialPageParam,
+  initialPageParam = undefined,
   ...options
 }: UseInfiniteListOptions<Entity, Selected>) => {
+  const queryClient = useQueryClient()
+
   const normalizedQueryKey = useMemo(
     () => (Array.isArray(queryKey) ? queryKey : [queryKey]),
     [queryKey]
@@ -61,9 +70,11 @@ const useInfiniteFindAll = <
   )
 
   const finalQueryKey = useMemo(
-    () => [...normalizedQueryKey, endpoint, stableQueryParams],
+    () => [...normalizedQueryKey, endpoint ?? null, stableQueryParams] as const,
     [normalizedQueryKey, endpoint, stableQueryParams]
   )
+
+  // ─── Query ──────────────────────────────────────────────────────────────────
 
   const hook = useInfiniteQuery<QueryData<Entity>, Error, Selected, QueryKey>({
     queryKey: finalQueryKey,
@@ -73,7 +84,11 @@ const useInfiniteFindAll = <
         config: {
           params: {
             ...queryParams,
-            ...(pageParam ?? {}),
+            ...(pageParam !== null &&
+            typeof pageParam === 'object' &&
+            !Array.isArray(pageParam)
+              ? (pageParam as Record<string, unknown>)
+              : {}),
           },
         },
       }),
@@ -82,85 +97,85 @@ const useInfiniteFindAll = <
     ...options,
   })
 
-  const getSafeCache = useCallback((old?: InfiniteFindAllResult<Entity>) => {
-    return (
-      old ?? {
-        pages: [],
-        pageParams: [],
-      }
-    )
-  }, [])
+  // ─── Cache helpers ──────────────────────────────────────────────────────────
 
-  const addItemInCache = (item: Entity) => {
-    queryClient.setQueryData<InfiniteFindAllResult<Entity>>(
-      finalQueryKey,
-      (old) => {
-        const base = getSafeCache(old)
-        const firstPage = base.pages[0]
-        const exists = firstPage?.data.some((i) => i.id === item.id)
+  const getSafeCache = useCallback(
+    (old?: InfiniteFindAllResult<Entity>): InfiniteFindAllResult<Entity> =>
+      old ?? { ...EMPTY_INFINITE_CACHE },
+    []
+  )
 
-        if (exists) return base
+  const addItemInCache = useCallback(
+    (item: Entity) => {
+      queryClient.setQueryData<InfiniteFindAllResult<Entity>>(
+        finalQueryKey,
+        (old) => {
+          const base = getSafeCache(old)
 
-        return {
-          ...base,
-          pages: base.pages.map((page, index) =>
-            index === 0
-              ? {
-                  ...page,
-                  data: [item, ...page.data],
-                }
-              : page
-          ),
-        }
-      }
-    )
-  }
+          if (base.pages.length === 0) return base
 
-  const updateItemInCache = (
-    id: string | number,
-    updater: (item: Entity) => Entity
-  ) => {
-    queryClient.setQueryData<InfiniteFindAllResult<Entity>>(
-      finalQueryKey,
-      (old) => {
-        if (!old) return old
+          const alreadyExists = base.pages.some((page) =>
+            page.data.some((i) => i.id === item.id)
+          )
+          if (alreadyExists) return base
 
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            data: page.data.map((item) =>
-              item.id === id ? updater(item) : item
+          return {
+            ...base,
+            pages: base.pages.map((page, index) =>
+              index === 0 ? { ...page, data: [item, ...page.data] } : page
             ),
-          })),
+          }
         }
-      }
-    )
-  }
+      )
+    },
+    [queryClient, finalQueryKey, getSafeCache]
+  )
 
-  const removeItemInCache = (id: string | number) => {
-    queryClient.setQueryData<InfiniteFindAllResult<Entity>>(
-      finalQueryKey,
-      (old) => {
-        if (!old) return old
-
-        return {
-          ...old,
-          pages: old.pages.map((page) => ({
-            ...page,
-            data: page.data.filter((item) => item.id !== id),
-          })),
+  const updateItemInCache = useCallback(
+    (id: string | number, updater: (item: Entity) => Entity) => {
+      queryClient.setQueryData<InfiniteFindAllResult<Entity>>(
+        finalQueryKey,
+        (old) => {
+          if (!old) return old
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              data: page.data.map((item) =>
+                item.id === id ? updater(item) : item
+              ),
+            })),
+          }
         }
-      }
-    )
-  }
+      )
+    },
+    [queryClient, finalQueryKey]
+  )
 
-  const emptyCache = () => {
-    queryClient.setQueryData(finalQueryKey, {
-      pages: [],
-      pageParams: [],
+  const removeItemInCache = useCallback(
+    (id: string | number) => {
+      queryClient.setQueryData<InfiniteFindAllResult<Entity>>(
+        finalQueryKey,
+        (old) => {
+          if (!old) return old
+          return {
+            ...old,
+            pages: old.pages.map((page) => ({
+              ...page,
+              data: page.data.filter((item) => item.id !== id),
+            })),
+          }
+        }
+      )
+    },
+    [queryClient, finalQueryKey]
+  )
+
+  const emptyCache = useCallback(() => {
+    queryClient.setQueryData<InfiniteFindAllResult<Entity>>(finalQueryKey, {
+      ...EMPTY_INFINITE_CACHE,
     })
-  }
+  }, [queryClient, finalQueryKey])
 
   return {
     ...hook,
