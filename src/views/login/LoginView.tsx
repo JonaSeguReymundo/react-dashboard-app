@@ -27,6 +27,9 @@ export default function AuthView() {
       const response = await login({
         username: values.username.trim(),
         password: values.password,
+        onUnauthorized() {
+          message.warning('Usuario o contraseña incorrectos')
+        },
       })
 
       loginForm.resetFields()
