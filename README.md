@@ -261,5 +261,3 @@ await svc.findAll({ endpoint: '/my-entities' })
 - Models: [src/models](src/models)
 
 ---
-
-Si quieres que incluya en este mismo archivo la lista completa de firmas y tipos automáticamente extraída de cada fichero `src/services/api/custom/*.ts` y `src/hooks/**`, la puedo generar ahora y añadirla en una sección `APIs` con firmas y ejemplos concretos por servicio/hook.
