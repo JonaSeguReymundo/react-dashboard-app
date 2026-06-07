@@ -146,6 +146,64 @@ await userService.login({ username: 'u', password: 'p' })
 const profile = await userService.profile()
 ```
 
+### `onUnauthorized` y `onForbidden`
+- `AbstractService` permite pasar en `config` los callbacks `onUnauthorized?: () => void` y `onForbidden?: () => void`.
+- `Service` los reenvía a `this.axios` y `axiosInstance` los consume en el interceptor de respuesta.
+- `axiosInstance` maneja:
+  - `401`: ejecuta `config.onUnauthorized` si existe; si no, muestra toast, borra token y redirige a `/login`.
+  - `403`: ejecuta `config.onForbidden` si existe; si no, muestra toast de permisos.
+
+Ejemplo directo con `Service`:
+
+```ts
+await itemService.findAll({
+  endpoint: '/items',
+  config: {
+    params: { active: true },
+    onUnauthorized: () => console.log('usuario no autorizado'),
+    onForbidden: () => console.log('acceso prohibido'),
+  },
+})
+```
+
+Ejemplo de `UserService.login` con `onUnauthorized`:
+
+```ts
+const userService = new UserService()
+await userService.login({
+  username: 'u',
+  password: 'p',
+  onUnauthorized: () => {
+    console.log('login requerido')
+  },
+})
+```
+
+Ejemplo de clase custom con Axios config:
+
+```ts
+import Service from '@/services/core/Service'
+import type Product from '@/models/api/entities/Product'
+
+export default class ProductService extends Service<Product> {
+  constructor() {
+    super({ endpoint: '/products' })
+  }
+
+  public async publish(id: string) {
+    const res = await this.axios.post<Product>(
+      `/products/${id}/publish`,
+      {},
+      {
+        onUnauthorized: () => console.log('Token inválido o expirado'),
+        onForbidden: () => console.log('No tienes permiso para publicar'),
+      }
+    )
+    return res.data
+  }
+}
+```
+
 ### `services/api/index.ts` (exportadores)
 - En el repo hay un archivo que agrupa/instancia servicios y exporta instancias para uso en providers/hooks (ver `[src/services/api/index.ts]`).
 
@@ -166,26 +224,128 @@ Todos los hooks relevantes están en `src/hooks/` y `src/hooks/core/`.
 - Retorno: `{ create, update, remove, isCreating, isUpdating, isDeleting, createError, updateError, deleteError, useFindById, useFindByPath }`
 - Integra `useMutation` (react-query) y hace `invalidateQueries` del `queryKey` cuando cambian datos.
 
-Ejemplo de uso:
+Ejemplo de uso con servicio custom (`UserService`):
 
 ```ts
-const { create, useFindById } = useCrud({ service: userService, queryKey: ['users'] })
-await create({ payload: { username: 'x' } })
-const userQ = useFindById({ id: 1 })
+import useCrud from '@/hooks/core/useCrud'
+import UserService from '@/services/api/custom/UserService'
+
+const userService = new UserService()
+
+const { create, update, remove, useFindById } = useCrud({
+  service: userService,
+  queryKey: ['users'],
+  onUnauthorized: () => console.log('No autorizado'),
+  onForbidden: () => console.log('Acceso denegado'),
+})
+
+await create({ payload: { username: 'nuevo', password: '1234' } })
+const userQuery = useFindById({ id: 1 })
 ```
+
+Ejemplo de uso con servicio core genérico:
+
+```ts
+import Service from '@/services/core/Service'
+import useCrud from '@/hooks/core/useCrud'
+
+const itemService = new Service<{ id?: number; name?: string }>({
+  endpoint: '/items',
+})
+
+const { create, update, remove, useFindById } = useCrud({
+  service: itemService,
+  queryKey: ['items'],
+})
+
+- El hook pasa `onUnauthorized` / `onForbidden` a las llamadas de mutación y consultas.
+- También puedes sobrescribirlos por llamada individual usando `config`.
+
+await create({
+  payload: { name: 'nuevo' },
+  config: {
+    onUnauthorized: () => console.log('redirigir a login'),
+    onForbidden: () => console.log('mostrar mensaje de permisos'),
+  },
+})
 
 ### `useFindAll<Entity>`
 - Archivo: `src/hooks/core/useFindAll.ts`
 - Propósito: obtener listas paginadas; devuelve `UseQueryResult` aumentado con `finalQueryKey` y helpers `addItemInCache`, `updateItemInCache`, `removeItemInCache`, `emptyCache`.
 
+Ejemplo con servicio custom:
+
+```ts
+import useFindAll from '@/hooks/core/useFindAll'
+import UserService from '@/services/api/custom/UserService'
+
+const userService = new UserService()
+const usersQuery = useFindAll({
+  service: userService,
+  endpoint: '/users',
+  queryKey: ['users'],
+  queryParams: { page: 1, pageSize: 20 },
+  onUnauthorized: () => console.log('redirigir a login'),
+  onForbidden: () => console.log('mostrar aviso de permisos'),
+})
+```
+
+Ejemplo con servicio genérico:
+
+```ts
+import Service from '@/services/core/Service'
+import useFindAll from '@/hooks/core/useFindAll'
+
+const productService = new Service<{ id?: number; name?: string }>({
+  endpoint: '/products',
+})
+
+const productsQuery = useFindAll({
+  service: productService,
+  endpoint: '/products',
+  queryKey: ['products'],
+  queryParams: { page: 1, pageSize: 10 },
+  onUnauthorized: () => console.log('redirigir a login'),
+  onForbidden: () => console.log('mostrar aviso de permisos'),
+})
+```
+
 ### `useInfiniteFindAll<Entity>`
 - Archivo: `src/hooks/core/useInfiniteFindAll.ts`
 - Propósito: paginación infinita con `useInfiniteQuery`; incluye helpers análogos para gestionar cache infinita.
 
-### `useQueryParams<const T extends readonly string[]>` 
+Ejemplo de uso:
+
+```ts
+import useInfiniteFindAll from '@/hooks/core/useInfiniteFindAll'
+import Service from '@/services/core/Service'
+
+const productService = new Service<{ id?: number; name?: string }>({
+  endpoint: '/products',
+})
+
+const infiniteProducts = useInfiniteFindAll({
+  service: productService,
+  endpoint: '/products',
+  queryKey: ['products', 'infinite'],
+  queryParams: { pageSize: 20 },
+  onUnauthorized: () => console.log('redirigir a login'),
+  onForbidden: () => console.log('mostrar aviso de permisos'),
+  getNextPageParam: (lastPage) => lastPage.pagination.nextCursor || undefined,
+})
+```
+
+### `useQueryParams<const T extends readonly string[]>`
 - Archivo: `src/hooks/core/useQueryParams.ts`
 - Firma: `useQueryParams(querys)` → `{ params, setUrlParam, removeUrlParam, setUrlParams }`
 - Propósito: manipular parámetros de la URL de forma tipada y segura.
+
+Ejemplo:
+
+```ts
+const { params, setUrlParam, removeUrlParam } = useQueryParams(['page', 'search'])
+setUrlParam('search', 'react')
+```
 
 ### `useRecoilStorage<T>`
 - Archivo: `src/hooks/core/useRecoilStorage.ts`
@@ -235,6 +395,19 @@ await svc.findAll({ endpoint: '/my-entities' })
 3. (Opcional) Crear hooks que reusen utilidades: `useFindAll({ service: svc, queryKey: 'my-entities' })` o usar `useCrud`.
 
 4. Cuando se necesiten handlers de autorización locales, pasar `config: { onUnauthorized: () => void, onForbidden: () => void }` en cada llamada.
+
+---
+
+## Backends de prueba recomendados
+
+Para probar este frontend con un backend compatible, puedes usar estos repositorios:
+
+- https://github.com/Loza64/spring-app-template.git
+- https://github.com/Loza64/nestjs-app-template.git
+
+Ambos templates sirven como API de ejemplo que exponen rutas REST compatibles con este frontend.
+
+> Configura `VITE_API_URL` en `.env` para apuntar al backend local, por ejemplo `http://localhost:4000`.
 
 ---
 
