@@ -1,4 +1,4 @@
-import { Users, Key, LayoutDashboard } from 'lucide-react'
+import { Users, Key, LayoutDashboard, Wallet } from 'lucide-react'
 import React from 'react'
 import type { LucideProps } from 'lucide-react'
 import type { MenuItem, SubMenuItem } from '@/models/app/menu'
@@ -15,6 +15,14 @@ export const menu: MenuItem[] = [
     label: 'Dashboard',
     authorized: [roles.all],
     view: true,
+    children: [],
+  },
+  { 
+    key: RoutesEnum.MOVIMIENTOS,
+    icon: createIcon(Wallet),
+    label: 'Movimientos',     
+    authorized: [roles.all],  
+    view: true,              
     children: [],
   },
   {

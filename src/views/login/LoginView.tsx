@@ -176,8 +176,8 @@ const handleSignUp = async (values: SignUpProps) => {
                     rules={[{ required: true, message: 'Selecciona un rol' }]}
                 >
                     <Select placeholder="Selecciona un rol">
-                      <Select.Option value={1}>USER</Select.Option>
-                      <Select.Option value={2}>ADMIN</Select.Option>
+                      <Select.Option value={1}>ADMIN</Select.Option>
+                      <Select.Option value={2}>USER</Select.Option>
                     </Select>
                 </Form.Item>
 

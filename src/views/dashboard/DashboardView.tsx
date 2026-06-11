@@ -58,7 +58,7 @@ export default function DashboardView() {
       name: user.name,
       surname: user.surname,
       email: user.email,
-      role: user.role,
+      role: user.role?.id, 
     })
     setOpen(true)
   }
@@ -70,33 +70,66 @@ export default function DashboardView() {
   }
 
   const handleSave = async () => {
+  try {
+    // 1. Ejecución de validaciones nativas del formulario
     const values = await form.validateFields()
-    const payload: Partial<User> = {
+    
+    // 2. Normalización del rol: Extrae el ID numérico manejando objetos o tipos primitivos
+    let roleId: number | undefined = undefined
+    if (values.role) {
+      roleId = typeof values.role === 'object' && 'id' in values.role
+        ? Number(values.role.id)
+        : Number(values.role)
+    }
+
+    // 3. Construcción del DTO de envío
+    const payload: any = {
       username: values.username,
       name: values.name,
       surname: values.surname,
       email: values.email,
-      role: values.role ? (values.role.id as Role) : undefined,
+      role: roleId,
     }
 
     if (values.password) {
       payload.password = values.password
     }
 
-    try {
-      if (editingUser) {
-        await crud.update({ id: editingUser.id!, payload })
-        message.success('Usuario actualizado')
-      } else {
-        await crud.create({ payload: payload as User })
-        message.success('Usuario creado')
-      }
-      setOpen(false)
-      form.resetFields()
-    } catch (error: unknown) {
-      message.error('Error guardando el usuario')
+    // 4. Despacho de peticiones concurrentes según el contexto del modal
+    if (editingUser) {
+      await crud.update({ id: editingUser.id!, payload })
+      message.success('Usuario actualizado con éxito')
+    } else {
+      await crud.create({ payload: payload as User })
+      message.success('Usuario creado con éxito')
+    }
+    
+    setOpen(false)
+    form.resetFields()
+
+  } catch (error: any) {
+    // Control de interrupción: Si el error es por validación de campos vacíos en la UI,
+    // detenemos el flujo sin saturar la consola ni mostrar alertas globales redundantes.
+    if (error.errorFields) {
+      console.warn('[DashboardView -> handleSave]: Validación interna de formulario fallida.')
+      return
+    }
+
+    // Trazabilidad estándar para errores de infraestructura, red o lógica del backend
+    console.error('[DashboardView -> handleSave]: Error al procesar la persistencia del usuario.')
+    
+    if (error.response?.data) {
+      // El servidor respondió con un estado fuera del rango 2xx (400, 403, 500)
+      console.error('[Backend Response]:', error.response.data)
+      message.error('Error en el servidor: No se pudo guardar el usuario')
+    } else {
+      // Error de red, caída de servidor local o problemas de timeout en el cliente
+      console.error('[Client/Network Error]:', error.message || error)
+      message.error('Error de red: Conexión con el servidor interrumpida')
     }
   }
+}
+     
 
   const columns: ColumnsType<User> = [
     { title: 'ID', dataIndex: 'id', key: 'id', align: 'center' },
