@@ -20,7 +20,7 @@ export const menu: MenuItem[] = [
   { 
     key: RoutesEnum.MOVIMIENTOS,
     icon: createIcon(Wallet),
-    label: 'Movimientos',     
+    label: 'Finanzas',     
     authorized: [roles.all],  
     view: true,              
     children: [],

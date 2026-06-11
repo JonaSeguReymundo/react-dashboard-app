@@ -49,7 +49,7 @@ export const routesConfig: Record<RoutesEnum, RouteConfig> = {
     auth: true,            
     roles: ['*'],           
     permission: ['*'],    
-    title: 'Movimientos',  
+    title: 'Finanzas',  
     search: true,           
   },
 } as const

@@ -1,21 +1,16 @@
 import { useEffect, useState } from 'react';
-import { Table, Button, Modal, Form, Input, Select, Radio, Space, message } from 'antd';
+import { Table, Button, Form, Input, Select, Space, message, Tabs, Card, Divider } from 'antd';
 import { movimientosService, cuentasService, transferenciasService, categoriasService } from '../../services/api/FinanzasService';
 
-export default function MovimientosView() {
+export default function FinanzasView() {
   const [loading, setLoading] = useState(false);
-  const [data, setData] = useState<any[]>([]);
+  const [movimientos, setMovimientos] = useState<any[]>([]);
   const [cuentas, setCuentas] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<any[]>([]);
   
-  const [isTxModalOpen, setIsTxModalOpen] = useState(false);
-  const [isCuentaModalOpen, setIsCuentaModalOpen] = useState(false);
-  
   const [form] = Form.useForm();
   const [cuentaForm] = Form.useForm();
-  const transactionType = Form.useWatch('tipo', form);
 
-  // 1. CARGA DE DATOS CORREGIDA
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -24,144 +19,103 @@ export default function MovimientosView() {
         cuentasService.findAll(),
         categoriasService.findAll()
       ]);
-
-      // 🔥 CORRECCIÓN: Extraer el arreglo explícitamente (buscando 'content' o 'data')
-      const movArray = movRes?.content || movRes?.data || (Array.isArray(movRes) ? movRes : []);
-      const cueArray = cueRes?.content || cueRes?.data || (Array.isArray(cueRes) ? cueRes : []);
-      const catArray = catRes?.content || catRes?.data || (Array.isArray(catRes) ? catRes : []);
-
-      setData(movArray);
-      setCuentas(cueArray);
-      setCategorias(catArray);
+      setMovimientos(movRes?.content || movRes || []);
+      setCuentas(Array.isArray(cueRes) ? cueRes : []);
+      setCategorias(Array.isArray(catRes) ? catRes : []);
     } catch (error) {
-      console.error(error);
-      message.error('Error al cargar los datos');
+      message.error('Error al cargar datos');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { 
-    fetchData(); 
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
-  const handleSaveTransaction = async () => {
+  const onFinishTransferencia = async (values: any) => {
     try {
-      const values = await form.validateFields();
-      if (values.tipo === 'TRANSFERENCIA') {
-        await transferenciasService.create({
-          payload: {
-            monto: values.monto,
-            cuentaOrigenId: values.cuenta_origen_id,
-            cuentaDestinoId: values.cuenta_destino_id,
-            categoriaId: values.categoria_id
-          }
-        });
-      } else {
-        await movimientosService.create({
-          payload: {
-            tipo: values.tipo,
-            monto: Number(values.monto),
-            descripcion: values.descripcion,
-            cuenta_id: values.cuenta_id,
-            categoria_id: values.categoria_id,
-          }
-        });
-      }
-      message.success('Operación exitosa');
-      setIsTxModalOpen(false);
-      form.resetFields();
-      fetchData(); // Recargar la tabla con los nuevos datos
-    } catch (error) { 
-      message.error('Error al procesar la operación'); 
-    }
-  };
-
-  const handleSaveCuenta = async () => {
-    try {
-      const values = await cuentaForm.validateFields();
-      await cuentasService.create({
+      await transferenciasService.create({
         payload: {
-          nombre: values.nombre,
-          banco: values.banco,
-          saldoBase: Number(values.saldo_inicial) 
+          cuentaOrigenId: Number(values.cuentaOrigenId),
+          cuentaDestinoId: Number(values.cuentaDestinoId),
+          monto: Number(values.monto),
+          categoriaId: Number(values.categoriaId)
         }
       });
-      message.success('Cuenta creada exitosamente');
-      setIsCuentaModalOpen(false);
-      cuentaForm.resetFields();
-      fetchData(); // Recargar cuentas
-    } catch (error) { 
-      message.error('Error al crear cuenta'); 
-    }
+      message.success('Transferencia exitosa');
+      form.resetFields();
+      fetchData(); 
+    } catch (error) { message.error('Error al realizar transferencia'); }
   };
+
+  const onFinishCuenta = async (values: any) => {
+    try {
+      await cuentasService.create({
+        payload: {
+          alias: values.alias,
+          moneda: values.moneda,
+          tipo: values.tipo,
+          saldoBase: Number(values.saldoBase)
+        }
+      });
+      message.success('Cuenta creada');
+      cuentaForm.resetFields();
+      fetchData(); 
+    } catch (error) { message.error('Error al crear cuenta'); }
+  };
+
+  const items = [
+    { key: 'movimientos', label: 'Movimientos', children: <Table loading={loading} dataSource={movimientos} rowKey="id" columns={[{ title: 'Fecha', dataIndex: 'fecha', render: (f:any) => f ? `${f[2]}/${f[1]}/${f[0]}` : '-' }, { title: 'Descripción', dataIndex: 'descripcion' }, { title: 'Monto', dataIndex: 'monto' }]} /> },
+    { key: 'cuentas', label: 'Cuentas', children: (
+      <Space direction="vertical" style={{ width: '100%' }}>
+<Card title="Crear nueva cuenta" style={{ marginBottom: '24px' }}>
+  <Form form={cuentaForm} layout="inline" onFinish={onFinishCuenta}>
+    <Form.Item name="alias" rules={[{ required: true }]}>
+      <Input placeholder="Alias: Jonatan" />
+    </Form.Item>
+    <Form.Item name="moneda" rules={[{ required: true }]}>
+      <Input placeholder="Moneda: USD" />
+    </Form.Item>
+    <Form.Item name="tipo" rules={[{ required: true }]}>
+      <Input placeholder="Tipo: Ahorro" />
+    </Form.Item>
+    <Form.Item name="saldoBase" rules={[{ required: true }]}>
+      <Input type="number" placeholder="Saldo: 1000" />
+    </Form.Item>
+    
+    {/* Aquí aplicamos el espaciado */}
+    <Form.Item>
+      <Button type="primary" htmlType="submit" style={{ marginLeft: '10px' }}>
+        Agregar
+      </Button>
+    </Form.Item>
+  </Form>
+</Card>
+        <Table dataSource={cuentas} rowKey="id" columns={[{ title: 'Alias', dataIndex: 'alias' }, { title: 'Tipo', dataIndex: 'tipo' }, { title: 'Moneda', dataIndex: 'moneda' }, { title: 'Saldo', dataIndex: 'saldoBase' }]} />
+      </Space>
+    )},
+    { key: 'transferencias', label: 'Nueva Transferencia', children: (
+      <Card title="Realizar Transferencia" style={{ maxWidth: 600 }}>
+        <Form form={form} layout="vertical" onFinish={onFinishTransferencia}>
+          <Form.Item name="cuentaOrigenId" label="Origen" rules={[{ required: true }]}>
+            <Select>{cuentas.map(c => <Select.Option key={c.id} value={c.id}>{c.alias || `ID: ${c.id}`}</Select.Option>)}</Select>
+          </Form.Item>
+          <Form.Item name="cuentaDestinoId" label="Destino" rules={[{ required: true }]}>
+            <Select>{cuentas.map(c => <Select.Option key={c.id} value={c.id}>{c.alias || `ID: ${c.id}`}</Select.Option>)}</Select>
+          </Form.Item>
+          <Form.Item name="monto" label="Monto" rules={[{ required: true }]}><Input type="number" /></Form.Item>
+          <Form.Item name="categoriaId" label="Categoría" rules={[{ required: true }]}>
+            <Select>{categorias.map(cat => <Select.Option key={cat.id} value={cat.id}>{cat.nombre}</Select.Option>)}</Select>
+          </Form.Item>
+          <Button type="primary" htmlType="submit" block>Transferir</Button>
+        </Form>
+      </Card>
+    )},
+    { key: 'categorias', label: 'Categorías', children: <Table dataSource={categorias} rowKey="id" columns={[{ title: 'Nombre', dataIndex: 'nombre' }, { title: 'Tipo', dataIndex: 'tipo' }]} /> }
+  ];
 
   return (
     <div style={{ padding: '24px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-        <h2>Gestión de Movimientos</h2>
-        <Space>
-          <Button onClick={() => setIsCuentaModalOpen(true)}>Nueva Cuenta</Button>
-          <Button type="primary" onClick={() => setIsTxModalOpen(true)}>Nueva Operación</Button>
-        </Space>
-      </div>
-
-      <Table loading={loading} dataSource={data} rowKey="id" columns={[
-        { title: 'Fecha', dataIndex: 'fecha', key: 'fecha' },
-        { title: 'Descripción', dataIndex: 'descripcion', key: 'descripcion' },
-        { title: 'Monto', dataIndex: 'monto', key: 'monto' }
-      ]} />
-
-      <Modal open={isTxModalOpen} onOk={handleSaveTransaction} onCancel={() => setIsTxModalOpen(false)} destroyOnClose>
-        <Form form={form} layout="vertical" initialValues={{ tipo: 'INGRESO' }}>
-          <Form.Item name="tipo" label="Tipo">
-            <Radio.Group>
-              <Radio value="INGRESO">Ingreso</Radio>
-              <Radio value="EGRESO">Egreso</Radio>
-              <Radio value="TRANSFERENCIA">Transferencia</Radio>
-            </Radio.Group>
-          </Form.Item>
-          <Form.Item name="monto" label="Monto" rules={[{ required: true }]}>
-            <Input type="number" />
-          </Form.Item>
-          {transactionType !== 'TRANSFERENCIA' && (
-             <Form.Item name="descripcion" label="Descripción" rules={[{ required: true }]}>
-               <Input />
-             </Form.Item>
-          )}
-          {transactionType === 'TRANSFERENCIA' ? (
-            <>
-              <Form.Item name="cuenta_origen_id" label="Origen" rules={[{ required: true }]}>
-                <Select>{cuentas.map(c => <Select.Option key={c.id} value={c.id}>{c.nombre}</Select.Option>)}</Select>
-              </Form.Item>
-              <Form.Item name="cuenta_destino_id" label="Destino" rules={[{ required: true }]}>
-                <Select>{cuentas.map(c => <Select.Option key={c.id} value={c.id}>{c.nombre}</Select.Option>)}</Select>
-              </Form.Item>
-            </>
-          ) : (
-            <Form.Item name="cuenta_id" label="Cuenta" rules={[{ required: true }]}>
-              <Select>{cuentas.map(c => <Select.Option key={c.id} value={c.id}>{c.nombre}</Select.Option>)}</Select>
-            </Form.Item>
-          )}
-          <Form.Item name="categoria_id" label="Categoría" rules={[{ required: true }]}>
-            <Select>{categorias.map(cat => <Select.Option key={cat.id} value={cat.id}>{cat.nombre}</Select.Option>)}</Select>
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      <Modal open={isCuentaModalOpen} onOk={handleSaveCuenta} onCancel={() => setIsCuentaModalOpen(false)} destroyOnClose>
-        <Form form={cuentaForm} layout="vertical">
-          <Form.Item name="nombre" label="Nombre" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="banco" label="Banco" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="saldo_inicial" label="Saldo Inicial" rules={[{ required: true }]}>
-            <Input type="number" />
-          </Form.Item>
-        </Form>
-      </Modal>
+      <Tabs defaultActiveKey="cuentas" items={items} />
     </div>
-  ); 
+  );
 }
