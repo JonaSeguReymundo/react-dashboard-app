@@ -1,6 +1,6 @@
 import { useSession } from '@/hooks/useSession'
 import type User from '@/models/api/entities/User'
-import { Button, Form, Input, message, Tabs } from 'antd'
+import { Button, Form, Input, message, Tabs, Select } from 'antd'
 
 interface LoginProps {
   username: string
@@ -14,6 +14,7 @@ interface SignUpProps {
   email: string
   password: string
   confirmPassword: string
+  role: number 
 }
 
 export default function AuthView() {
@@ -38,28 +39,32 @@ export default function AuthView() {
       console.error(error)
     }
   }
-
-  const handleSignUp = async (values: SignUpProps) => {
-    if (values.password !== values.confirmPassword) {
-      message.error('Las contraseñas no coinciden.')
-      return
-    }
-
-    try {
-      const payload: User = {
-        username: values.username,
-        name: values.name,
-        surname: values.surname,
-        email: values.email,
-        password: values.password,
-      }
-      const result = await signup(payload)
-      signUpForm.resetFields()
-      saveSession(result)
-    } catch (error: unknown) {
-      console.error(error)
-    }
+  
+const handleSignUp = async (values: SignUpProps) => {
+  if (values.password !== values.confirmPassword) {
+    message.error('Las contraseñas no coinciden.')
+    return
   }
+
+  try {
+    const signupPayload = {
+      username: values.username,
+      name: values.name,
+      surname: values.surname,
+      email: values.email,
+      password: values.password,
+      role: Number(values.role) 
+    };
+
+    await signup(signupPayload as any); 
+    
+    signUpForm.resetFields();
+    message.success('Usuario registrado con éxito');
+  } catch (error: any) {
+    console.error('Error del backend:', error.response?.data);
+    message.error('Error al registrar: ' + (error.response?.data?.message || 'Revisa los datos'));
+  }
+}
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-gray-100">
@@ -164,6 +169,17 @@ export default function AuthView() {
                     <Input.Password />
                   </Form.Item>
                 </div>
+
+                <Form.Item
+                    label="Rol"
+                    name="role"
+                    rules={[{ required: true, message: 'Selecciona un rol' }]}
+                >
+                    <Select placeholder="Selecciona un rol">
+                      <Select.Option value={1}>USER</Select.Option>
+                      <Select.Option value={2}>ADMIN</Select.Option>
+                    </Select>
+                </Form.Item>
 
                 <Form.Item>
                   <Button
